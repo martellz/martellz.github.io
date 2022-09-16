@@ -9,8 +9,8 @@ import "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js";
 import "https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js";
 
 import * as THREE from "three";
-import { OrbitControls } from "https://unpkg.com/three@0.133.1/examples/jsm/controls/OrbitControls.js";
-import { GLTFLoader } from "https://unpkg.com/three@0.133.1/examples/jsm/loaders/GLTFLoader.js";
+import {OrbitControls} from "https://unpkg.com/three@0.133.1/examples/jsm/controls/OrbitControls.js";
+import {GLTFLoader} from "https://unpkg.com/three@0.133.1/examples/jsm/loaders/GLTFLoader.js";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 let render_w = (window.innerWidth * 2) / 3; //640
@@ -93,8 +93,8 @@ loader.load("../model/Xbot.glb", function (gltf) {
   model.traverse(function (object) {
     if (object.isMesh) {
       object.castShadow = true;
-      if (object.name == "Beta_Joints") mesh_joint = object;
-      if (object.name == "Beta_Surface") mesh_surface = object;
+      if (object.name === "Beta_Joints") mesh_joint = object;
+      if (object.name === "Beta_Surface") mesh_surface = object;
     }
     if (object.isBone) {
       bones.push(object);
@@ -282,11 +282,10 @@ function computeR(A, B) {
 
   // full rotation matrix
   //const R = new Matrix4().multiplyMatrices(new Matrix4().multiplyMatrices(C, R_uvw), C.clone().transpose());
-  const R = new THREE.Matrix4().multiplyMatrices(
-    C.clone().transpose(),
-    new THREE.Matrix4().multiplyMatrices(R_uvw, C)
+  return new THREE.Matrix4().multiplyMatrices(
+      C.clone().transpose(),
+      new THREE.Matrix4().multiplyMatrices(R_uvw, C)
   );
-  return R;
 }
 
 function onResults2(results) {
@@ -407,8 +406,8 @@ function onResults2(results) {
     );
 
     let i = 0;
-    for (const [key, value] of Object.entries(pos_3d_landmarks)) {
-      poselandmarks_points.geometry.attributes.position.array[3 * i + 0] =
+    for (const [, value] of Object.entries(pos_3d_landmarks)) {
+      poselandmarks_points.geometry.attributes.position.array[3 * i] =
         value.x;
       poselandmarks_points.geometry.attributes.position.array[3 * i + 1] =
         value.y;
@@ -497,8 +496,8 @@ function onResults2(results) {
     );
 
     i = 0;
-    for (const [key, value] of Object.entries(newJoints3D)) {
-      Newposelandmarks_points.geometry.attributes.position.array[3 * i + 0] =
+    for (const [, value] of Object.entries(newJoints3D)) {
+      Newposelandmarks_points.geometry.attributes.position.array[3 * i] =
         value.x;
       Newposelandmarks_points.geometry.attributes.position.array[3 * i + 1] =
         value.y;
