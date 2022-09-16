@@ -2,15 +2,10 @@ const videoElement = document.getElementsByClassName("input_video")[0];
 const canvasElement = document.getElementsByClassName("output_canvas")[0];
 const canvasCtx = canvasElement.getContext("2d");
 
-import "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js";
-import "https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js";
-import "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js";
-// import "https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js";
-import "https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js";
-
-import * as THREE from "three";
-import {OrbitControls} from "https://unpkg.com/three@0.133.1/examples/jsm/controls/OrbitControls.js";
-import {GLTFLoader} from "https://unpkg.com/three@0.133.1/examples/jsm/loaders/GLTFLoader.js";
+import * as THREE from 'three';
+import EPnPSolver from "./EPnP.js";
+import {OrbitControls} from "../scripts/OrbitControls.js";
+import {GLTFLoader} from "../scripts/GLTFLoader.js";
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 let render_w = (window.innerWidth * 2) / 3; //640
