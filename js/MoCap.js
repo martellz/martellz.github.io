@@ -1,11 +1,12 @@
-const videoElement = document.getElementsByClassName("input_video")[0];
-const canvasElement = document.getElementsByClassName("output_canvas")[0];
-const canvasCtx = canvasElement.getContext("2d");
-
+import {procrustes} from "./Procrustes";
 import * as THREE from 'three';
 import EPnPSolver from "./EPnP.js";
 import {OrbitControls} from "../scripts/OrbitControls.js";
 import {GLTFLoader} from "../scripts/GLTFLoader.js";
+
+const videoElement = document.getElementsByClassName("input_video")[0];
+const canvasElement = document.getElementsByClassName("output_canvas")[0];
+const canvasCtx = canvasElement.getContext("2d");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 let render_w = (window.innerWidth * 2) / 3; //640
@@ -17,15 +18,28 @@ renderer.setViewport(0, 0, render_w, render_h);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-const camera_ar = new THREE.PerspectiveCamera(
+const renderer2 = new THREE.WebGLRenderer({ antialias: true });
+renderer2.setSize(render_w, render_h);
+renderer2.setViewport(0, 0, render_w, render_h);
+renderer2.shadowMap.enabled = true;
+document.body.appendChild(renderer2.domElement);
+
+const camera_preview = new THREE.PerspectiveCamera(
   45,
   render_w / render_h,
   0.1,
   1000
 );
-camera_ar.position.set(-1, 2, 3);
-camera_ar.up.set(0, 1, 0);
-camera_ar.lookAt(0, 1, 0);
+camera_preview.position.set(-1, 2, 3);
+camera_preview.up.set(0, 1, 0);
+camera_preview.lookAt(0, 1, 0);
+
+const camera_ar = new THREE.PerspectiveCamera(
+    45,
+    render_w / render_h,
+    0.1,
+    1000
+);
 
 const camera_world = new THREE.PerspectiveCamera(
   45,
@@ -38,7 +52,7 @@ camera_world.up.set(0, 1, 0);
 camera_world.lookAt(0, 1, 0);
 camera_world.updateProjectionMatrix();
 
-const controls = new OrbitControls(camera_ar, renderer.domElement);
+const controls = new OrbitControls(camera_preview, renderer.domElement);
 controls.enablePan = true;
 controls.enableZoom = true;
 controls.target.set(0, 1, -1);
@@ -230,8 +244,8 @@ Newposelandmarks_points.geometry.setAttribute(
 //   "position",
 //   new THREE.BufferAttribute(new Float32Array(21 * 3), 3)
 // );
-scene.add(poselandmarks_points);
-scene.add(Newposelandmarks_points);
+// scene.add(poselandmarks_points);
+// scene.add(Newposelandmarks_points);
 // scene.add(l_handlandmarks_points);
 // scene.add(r_handlandmarks_points);
 
@@ -385,7 +399,7 @@ function onResults2(results) {
   let R_chain_rightupper, R_chain_leftupper;
   // let pose_left_wrist, pose_right_wrist;
 
-  if (results.poseLandmarks) {
+  if (results.poseLandmarks && results.poseWorldLandmarks) {
     // pose
     let pose_landmarks_dict = {};
     let newJoints3D = {};
@@ -748,7 +762,76 @@ function onResults2(results) {
     );
   }
 
-  renderer.render(scene, camera_ar);
+  function solvePnP(camera, normalizedLandmarks, worldLandmarks) {
+    const pis = normalizedLandmarks
+        .filter((landmark, index) => index > 8)
+        .filter((landmark) => landmark.visibility > 0.5)
+        .map((i) => [
+          i.x * render_w, i.y * render_h
+        ]);
+
+    const pws = worldLandmarks
+        .filter((landmark, index) => index > 8)
+        .filter((landmark) => landmark.visibility > 0.5)
+        .map((j) => [
+          j.x, j.y, j.z
+        ]);
+
+    if (pws.length < 3) return [undefined, undefined];
+
+    let f = render_h / 2.0 / Math.tan(camera.fov *  Math.PI / 2 / 180);
+    let cx = render_w / 2.0;
+    let cy = render_h / 2.0;
+
+    const ePnP = new EPnPSolver(pws.length, [
+      f, f, cx, cy
+    ]);
+
+    let { R, T } = ePnP.solvePnP(pis, pws);
+    if(R && T) {
+      let R_c2w = [
+        [R[0][0], R[1][0], R[2][0]],
+        [R[0][1], R[1][1], R[2][1]],
+        [R[0][2], R[1][2], R[2][2]],
+      ];
+      let T_c2w = [
+        -R[0][0] * T[0] - R[1][0] * T[1] - R[2][0] * T[2],
+        -R[0][1] * T[0] - R[1][1] * T[1] - R[2][1] * T[2],
+        -R[0][2] * T[0] - R[1][2] * T[1] - R[2][2] * T[2]
+      ];
+      return [R_c2w, T_c2w];
+    }
+
+    return [undefined, undefined]
+  }
+
+  let [R_c2w, T_c2w] = solvePnP(camera_ar, results.poseLandmarks, results.poseWorldLandmarks);
+
+  // TODO: still bugs here
+  let [scale, R_v2w, T_v2w] = procrustes(results.poseWorldLandmarks.filter((landmark, index) => [11, 12, 23, 24].includes(index)));
+  // model.scale.set(scale, scale, scale);
+  model.matrix.set(
+      R_v2w[0][0], R_v2w[0][1], R_v2w[0][2], T_v2w[0],
+      -R_v2w[1][0], -R_v2w[1][1], -R_v2w[1][2], -T_v2w[1],
+      -R_v2w[2][0], -R_v2w[2][1], -R_v2w[2][2], -T_v2w[2],
+      0, 0, 0, 1
+  )
+  model.matrixAutoUpdate = false;
+
+  if (R_c2w && T_c2w) {
+    // console.log("R, T", R_c2w, T_c2w);
+    camera_ar.matrix.set(
+        R_c2w[0][0], R_c2w[0][1], R_c2w[0][2], T_c2w[0],
+        R_c2w[1][0], R_c2w[1][1], R_c2w[1][2], T_c2w[1],
+        R_c2w[2][0], R_c2w[2][1], R_c2w[2][2], T_c2w[2],
+        0, 0, 0, 1);
+    camera_ar.matrixAutoUpdate = false;
+  }
+
+  // TODO: somethings need to be update between renderer and renderer2
+  renderer2.render(scene, camera_ar);
+  renderer.render(scene, camera_preview);
+
   canvasCtx.restore();
 }
 
