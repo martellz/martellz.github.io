@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import EPnPSolver from "./EPnP.js";
 import {OrbitControls} from "../scripts/OrbitControls.js";
 import {GLTFLoader} from "../scripts/GLTFLoader.js";
+import {Matrix4} from "three";
+import matrix from "matrix-js";
 
 const videoElement = document.getElementsByClassName("input_video")[0];
 const canvasElement = document.getElementsByClassName("output_canvas")[0];
@@ -35,14 +37,15 @@ camera_preview.up.set(0, 1, 0);
 camera_preview.lookAt(0, 1, 0);
 
 const camera_ar = new THREE.PerspectiveCamera(
-    45,
+    60,
     render_w / render_h,
     0.1,
     1000
 );
+const camera_ar_helper = new THREE.CameraHelper(camera_ar);
 
 const camera_world = new THREE.PerspectiveCamera(
-  45,
+  60,
   render_w / render_h,
   1,
   1000
@@ -78,17 +81,17 @@ dirLight.shadow.camera.near = 0.1;
 dirLight.shadow.camera.far = 500;
 scene.add(dirLight);
 
-const ground_mesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(1000, 1000),
-  new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false })
-);
-ground_mesh.rotation.x = -Math.PI / 2;
-ground_mesh.receiveShadow = true;
-scene.add(ground_mesh);
-
-const grid_helper = new THREE.GridHelper(1000, 1000);
-grid_helper.rotation.x = Math.PI / 2;
-ground_mesh.add(grid_helper);
+// const ground_mesh = new THREE.Mesh(
+//   new THREE.PlaneGeometry(1000, 1000),
+//   new THREE.MeshPhongMaterial({ color: 0x999999, depthWrite: false })
+// );
+// ground_mesh.rotation.x = -Math.PI / 2;
+// ground_mesh.receiveShadow = true;
+// scene.add(ground_mesh);
+//
+// const grid_helper = new THREE.GridHelper(1000, 1000);
+// grid_helper.rotation.x = Math.PI / 2;
+// ground_mesh.add(grid_helper);
 
 let model,
   skeleton = null,
@@ -777,7 +780,7 @@ function onResults2(results) {
           j.x, j.y, j.z
         ]);
 
-    if (pws.length < 3) return [undefined, undefined];
+    if (pws.length < 3) return [undefined, undefined, undefined, undefined];
 
     let f = render_h / 2.0 / Math.tan(camera.fov *  Math.PI / 2 / 180);
     let cx = render_w / 2.0;
@@ -788,6 +791,7 @@ function onResults2(results) {
     ]);
 
     let { R, T } = ePnP.solvePnP(pis, pws);
+    [R, T] = cv2gl(R, T);
     if(R && T) {
       let R_c2w = [
         [R[0][0], R[1][0], R[2][0]],
@@ -799,33 +803,158 @@ function onResults2(results) {
         -R[0][1] * T[0] - R[1][1] * T[1] - R[2][1] * T[2],
         -R[0][2] * T[0] - R[1][2] * T[1] - R[2][2] * T[2]
       ];
-      return [R_c2w, T_c2w];
+      return [R, T, R_c2w, T_c2w];
     }
 
-    return [undefined, undefined]
+    return [undefined, undefined, undefined, undefined]
   }
 
-  let [R_c2w, T_c2w] = solvePnP(camera_ar, results.poseLandmarks, results.poseWorldLandmarks);
+  function cv2gl(R, T) {
+    R[2][0] *= -1;
+    R[2][1] *= -1;
+    R[2][2] *= -1;
+    T[2] *= -1;
+    R[1][0] *= -1;
+    R[1][1] *= -1;
+    R[1][2] *= -1;
+    T[1] *= -1;
+    return [R, T]
+  }
 
-  // TODO: still bugs here
-  let [scale, R_v2w, T_v2w] = procrustes(results.poseWorldLandmarks.filter((landmark, index) => [11, 12, 23, 24].includes(index)));
-  // model.scale.set(scale, scale, scale);
-  model.matrix.set(
-      R_v2w[0][0], R_v2w[0][1], R_v2w[0][2], T_v2w[0],
-      -R_v2w[1][0], -R_v2w[1][1], -R_v2w[1][2], -T_v2w[1],
-      -R_v2w[2][0], -R_v2w[2][1], -R_v2w[2][2], -T_v2w[2],
-      0, 0, 0, 1
-  )
-  model.matrixAutoUpdate = false;
+  if (results.poseLandmarks && results.poseWorldLandmarks) {
 
-  if (R_c2w && T_c2w) {
+    // TODO: still bugs here
+    let [scale, R_v2w, T_v2w, T_w2v] = procrustes(results.poseWorldLandmarks.filter((landmark, index) => [11, 12, 23, 24].includes(index)));
+    console.log("R_v2w", R_v2w);
+
+    // model.matrix.set(
+    //     R_v2w[0][0], R_v2w[0][1], R_v2w[0][2], T_v2w[0],
+    //     -R_v2w[1][0], -R_v2w[1][1], -R_v2w[1][2], -T_v2w[1],
+    //     -R_v2w[2][0], -R_v2w[2][1], -R_v2w[2][2], -T_v2w[2],
+    //     0, 0, 0, 1
+    // )
+    // model.matrixAutoUpdate = false;
+
+    let [R_w2c, T_w2c, R_c2w, T_c2w] = solvePnP(camera_ar, results.poseLandmarks, results.poseWorldLandmarks);
     // console.log("R, T", R_c2w, T_c2w);
-    camera_ar.matrix.set(
-        R_c2w[0][0], R_c2w[0][1], R_c2w[0][2], T_c2w[0],
-        R_c2w[1][0], R_c2w[1][1], R_c2w[1][2], T_c2w[1],
-        R_c2w[2][0], R_c2w[2][1], R_c2w[2][2], T_c2w[2],
-        0, 0, 0, 1);
-    camera_ar.matrixAutoUpdate = false;
+    if (R_c2w && T_c2w) {
+      let transform_w2c = [
+        [R_w2c[0][0], R_w2c[0][1], R_w2c[0][2], T_w2c[0]],
+        [R_w2c[1][0], R_w2c[1][1], R_w2c[1][2], T_w2c[1]],
+        [R_w2c[2][0], R_w2c[2][1], R_w2c[2][2], T_w2c[2]],
+        [0, 0, 0, 1]
+      ];
+
+      let transform_c2w = [
+        [R_c2w[0][0], R_c2w[0][1], R_c2w[0][2], T_c2w[0]],
+        [R_c2w[1][0], R_c2w[1][1], R_c2w[1][2], T_c2w[1]],
+        [R_c2w[2][0], R_c2w[2][1], R_c2w[2][2], T_c2w[2]],
+        [0, 0, 0, 1]
+      ];
+
+      let transform_w2v = [
+        [R_v2w[0][0], R_v2w[1][0], R_v2w[2][0], T_w2v[0]],
+        [R_v2w[0][1], R_v2w[1][1], R_v2w[2][1], T_w2v[1]],
+        [R_v2w[0][2], R_v2w[1][2], R_v2w[2][2], T_w2v[2]],
+        [0, 0, 0, 1]
+      ];
+
+      let transform_v2w = [
+        [R_v2w[0][0], R_v2w[0][1], R_v2w[0][2], T_v2w[0]],
+        [R_v2w[1][0], R_v2w[1][1], R_v2w[1][2], T_v2w[1]],
+        [R_v2w[2][0], R_v2w[2][1], R_v2w[2][2], T_v2w[2]],
+        [0, 0, 0, 1]
+      ];
+
+      // let transform_c2v = matrix(transform_c2w).prod(matrix(transform_w2v));
+      // let transform_v2c = matrix(transform_v2w).prod(matrix(transform_w2c));
+
+      model.scale.set(scale, scale, scale);
+      let mat = new Matrix4();
+      mat.set(
+          transform_v2w[0][0], transform_v2w[0][1], transform_v2w[0][2], transform_v2w[0][3],
+          transform_v2w[1][0], transform_v2w[1][1], transform_v2w[1][2], transform_v2w[1][3],
+          transform_v2w[2][0], transform_v2w[2][1], transform_v2w[2][2], transform_v2w[2][3],
+          0, 0, 0, 1
+      );
+      model.quaternion.setFromRotationMatrix(mat);
+      model.position.set(transform_v2w[0][3], transform_v2w[1][3], transform_v2w[2][3]);
+
+      // let R_c2v = transform_c2v.map((i) => [
+      //   i[0], i[1], i[2]
+      // ]).slice(0, 3);
+      //
+      // let T_c2v = [
+      //   transform_c2v[0][3], transform_c2v[1][3], transform_c2v[2][3]
+      // ];
+
+      // these seems not work???
+      // camera_ar.matrix.set(
+      //     R_c2w[0][0], R_c2w[0][1], R_c2w[0][2], T_c2w[0],
+      //     R_c2w[1][0], R_c2w[1][1], R_c2w[1][2], T_c2w[1],
+      //     R_c2w[2][0], R_c2w[2][1], R_c2w[2][2], T_c2w[2],
+      //     0, 0, 0, 1);
+      // camera_ar.matrixAutoUpdate = false;
+
+      camera_ar.position.set(T_c2w[0], T_c2w[1], T_c2w[2]);
+      let camera_pose = new Matrix4();
+      camera_pose.set(
+          R_c2w[0][0], R_c2w[0][1], R_c2w[0][2], 0,
+          R_c2w[1][0], R_c2w[1][1], R_c2w[1][2], 0,
+          R_c2w[2][0], R_c2w[2][1], R_c2w[2][2], 0,
+          0, 0, 0, 1
+      );
+      camera_ar.quaternion.setFromRotationMatrix(
+          camera_pose
+      );
+      // camera_ar_helper.update();
+
+
+      // test data
+      // let pose = new Matrix4();
+      //
+      // pose.set(
+      //     0.97313931, -0.02994531, -0.22826117, 0.23637674,
+      //     0.07152433, -0.90311227, 0.42340584, -0.08017015,
+      //     -0.21882448, -0.42835909, -0.87671223, 1.48016129,
+      //     0., 0., 0., 1.
+      // );
+      // let s = 1.0006076687642884;
+      // let r = [
+      //   [0.99876588, -0.02263295, 0.04420924],
+      //   [0.04373619, -0.02098623, -0.99882267],
+      //   [-0.02353409, -0.99952355, 0.01997045]
+      // ];
+      // let t = [-0.05189677,  0.97968325, -0.02323052];
+
+      // camera_ar.position.set(0.23637674,  0.08017015, -1.48016129);
+      // camera_ar.quaternion.setFromRotationMatrix(pose);
+      // camera_ar.updateMatrix();
+
+      // model.matrixAutoUpdate = false;
+      // // model.scale.set(s, s, s);
+      // let mat = new Matrix4();
+      // model.matrix.set(
+      //     // -0.99835792, -0.00475361, 0.05708642, -0.06281223,
+      //     // -0.05640207, 0.25576752, -0.96509159, 0.98978641,
+      //     // -0.01001318, -0.96672663, -0.25561564, 0.25822848,
+      //     0.99929505, 0.03724248, 0.00473284, -0.0440709,
+      //     0.03322322, -0.93598715, 0.35046294, 0.92256942,
+      //     0.01748199, -0.35005864, -0.93656464, 0.34937889,
+      //     // 1, 0, 0, -0.06281223,
+      //     // 0, -1, 0, 1,
+      //     // 0, 0, -1, 0.35,
+      //     0, 0, 0, 1
+      // );
+
+      // model.quaternion.setFromRotationMatrix(mat);
+      // model.position.set(-0.05189677, 0.97968325, -0.02323052);
+
+      // console.log("gltf matrix", model.matrix, model.rotation);
+      //
+      // console.log("camera pose", camera_ar.matrix);
+
+    }
   }
 
   // TODO: somethings need to be update between renderer and renderer2

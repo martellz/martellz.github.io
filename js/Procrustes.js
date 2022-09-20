@@ -19,25 +19,25 @@ function procrustes(worldLandmarks) {
     // const inputLandmarksArrayCopy = Object.values(inputLandmarksArray);
 
     const vertices = [
-        [15.163, 5.0267, 143.78],
-        [-15.163, 5.0267, 143.78],
-        [8.2078, -0.47654, 97.24],
-        [-8.2078, -0.47653, 97.24]
+        [0.15163, 1.4378, -0.050267],
+        [-0.15163, 1.4378, -0.050267],
+        [0.082078, 0.9724, 0.0047654],
+        [-0.082078, 0.9724, 0.0047653]
     ];
     const verticesCopy = [
-        [15.163, 5.0267, 143.78],
-        [-15.163, 5.0267, 143.78],
-        [8.2078, -0.47654, 97.24],
-        [-8.2078, -0.47653, 97.24]
+        [0.15163, 1.4378, -0.050267],
+        [-0.15163, 1.4378, -0.050267],
+        [0.082078, 0.9724, 0.0047654],
+        [-0.082078, 0.9724, 0.0047653]
     ];
     const verticesCopy2 = [
-        [15.163, 5.0267, 143.78],
-        [-15.163, 5.0267, 143.78],
-        [8.2078, -0.47654, 97.24],
-        [-8.2078, -0.47653, 97.24]
+        [0.15163, 1.4378, -0.050267],
+        [-0.15163, 1.4378, -0.050267],
+        [0.082078, 0.9724, 0.0047654],
+        [-0.082078, 0.9724, 0.0047653]
     ];
 
-    console.log("input", inputLandmarksArrayCopy, verticesCopy2, vertices);
+    // console.log("input", inputLandmarksArrayCopy, verticesCopy2, vertices);
 
     // procrustes test input
     // inputLandmarksArray = [
@@ -124,7 +124,12 @@ function procrustes(worldLandmarks) {
     translate[1][0] = center1.y - translate[1][0];
     translate[2][0] = center1.z - translate[2][0];
 
-    // console.log("output scale: ", scale);
+    let T_w2v = matrix(rotation.trans()).prod(matrix(translate))
+    T_w2v = T_w2v.map((i) =>
+        i[0] *= -1
+    )
+
+    console.log("output scale: ", scale);
     // console.log("output r: ", rotation());
     // console.log("output t: ", translate);
 
@@ -145,9 +150,23 @@ function procrustes(worldLandmarks) {
         error += Math.abs(sR_prod_vT[index][1] - inputLandmarksArrayCopy[index][1]);
         error += Math.abs(sR_prod_vT[index][2] - inputLandmarksArrayCopy[index][2]);
     });
-    // console.log("procrustes error", error);
+    console.log("procrustes error", error);
 
-    return [scale, rotation(), translate]
+    let error2 = 0;
+    let pwsToMesh = inputLandmarksArrayCopy.map((i) => [
+        (i[0] - translate[0][0]) / scale,
+        i[1] - translate[1][0] / scale,
+        i[2] - translate[2][0] / scale
+    ]);
+    pwsToMesh = matrix(pwsToMesh).prod(rotation);
+    pwsToMesh.forEach((value, index) => {
+        error2 += Math.abs(pwsToMesh[index][0] - verticesCopy2[index][0]);
+        error2 += Math.abs(pwsToMesh[index][1] - verticesCopy2[index][1]);
+        error2 += Math.abs(pwsToMesh[index][2] - verticesCopy2[index][2]);
+    });
+    console.log("procrustes error2", error2);
+
+    return [scale, rotation(), translate, T_w2v]
 }
 
 function FrobeniusNorm(mat) {
