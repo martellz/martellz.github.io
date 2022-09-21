@@ -10,15 +10,16 @@ const videoElement = document.getElementsByClassName("input_video")[0];
 const canvasElement = document.getElementsByClassName("output_canvas")[0];
 const canvasCtx = canvasElement.getContext("2d");
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// const renderer = new THREE.WebGLRenderer({ antialias: true });
 let render_w = (window.innerWidth * 2) / 3; //640
 const render_h = (render_w / 640) * 480; //480
 canvasElement.width = render_w;
 canvasElement.height = render_h;
-renderer.setSize(render_w, render_h);
-renderer.setViewport(0, 0, render_w, render_h);
-renderer.shadowMap.enabled = true;
-document.body.appendChild(renderer.domElement);
+// renderer.setSize(render_w, render_h);
+// renderer.setViewport(0, 0, render_w, render_h);
+// renderer.shadowMap.enabled = true;
+
+// document.body.appendChild(renderer.domElement);
 
 const renderer2 = new THREE.WebGLRenderer({ antialias: true });
 renderer2.setSize(render_w, render_h);
@@ -55,11 +56,11 @@ camera_world.up.set(0, 1, 0);
 camera_world.lookAt(0, 1, 0);
 camera_world.updateProjectionMatrix();
 
-const controls = new OrbitControls(camera_preview, renderer.domElement);
-controls.enablePan = true;
-controls.enableZoom = true;
-controls.target.set(0, 1, -1);
-controls.update();
+// const controls = new OrbitControls(camera_preview, renderer.domElement);
+// controls.enablePan = true;
+// controls.enableZoom = true;
+// controls.target.set(0, 1, -1);
+// controls.update();
 
 const scene = new THREE.Scene();
 
@@ -982,19 +983,25 @@ pose.setOptions({
 pose.onResults(onResults2);
 
 // video
-// videoElement.play();
-// async function detectionFrame() {
-//   await holistic.send({ image: videoElement });
-//   videoElement.requestVideoFrameCallback(detectionFrame);
-// }
-// detectionFrame();
+videoElement.play();
+
+setTimeout(() => {
+  videoElement.pause()
+  videoElement.load()
+}, 10)
+
+async function detectionFrame() {
+  await pose.send({ image: videoElement });
+  videoElement.requestVideoFrameCallback(detectionFrame);
+}
+detectionFrame();
 
 // webcam
-const camera = new Camera(videoElement, {
-  onFrame: async () => {
-    await pose.send({ image: videoElement });
-  },
-  width: render_w,
-  height: render_h,
-});
-camera.start();
+// const camera = new Camera(videoElement, {
+//   onFrame: async () => {
+//     await pose.send({ image: videoElement });
+//   },
+//   width: render_w,
+//   height: render_h,
+// });
+// camera.start();
