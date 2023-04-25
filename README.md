@@ -1,4 +1,3 @@
 # martellz.github.io
 
-npm install
-npm run build
+calculating pnp by mediapipe's 3D coordinates prediction is not good, causing heavy jitter
